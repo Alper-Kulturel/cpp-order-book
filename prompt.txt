@@ -1,0 +1,104 @@
+Act as a senior C++ low-latency developer. Build a complete, production-ready portfolio project called "C++ Limit Order Book".
+
+OBJECTIVE
+Implement a high-performance limit order book (LOB) in modern C++17 with add/cancel/modify/match operations, plus pybind11 bindings so it can be driven from Python. Include latency benchmarks and a Python test suite.
+
+DELIVERABLES
+1. Full project structure: cpp/, python/, tests/, benchmarks/, docs/
+2. README.md with: overview, architecture, operations, benchmark results, build, usage
+3. .gitignore (exclude build/, __pycache__, venv/, *.so, *.o)
+4. CMakeLists.txt for library + pybind11 module
+5. docs/architecture.md: explain price-time priority, order types, data structures (why std::map for price levels, std::list for FIFO at each level)
+
+ARCHITECTURE
+
+C++ LIBRARY (cpp/)
+- cpp/include/order_book.hpp: public API
+- cpp/src/order_book.cpp: implementation
+
+DATA STRUCTURES
+- struct Order { uint64_t id; double price; uint64_t quantity; Side side; uint64_t timestamp; }
+- enum class Side { Bid, Ask };
+- class OrderBook:
+  * std::map<double, std::list<Order>, std::greater<double>> bids_;  // highest first
+  * std::map<double, std::list<Order>, std::less<double>> asks_;     // lowest first
+  * std::unordered_map<uint64_t, Order> orders_by_id_;
+
+OPERATIONS
+- uint64_t add_limit_order(Side side, double price, uint64_t quantity) -> returns order id
+- bool cancel_order(uint64_t order_id) -> true if found and removed
+- bool modify_order(uint64_t order_id, uint64_t new_quantity) -> true if modified
+- std::vector<Trade> match() -> processes any crossing orders, returns executed trades
+- double best_bid() const
+- double best_ask() const
+- double spread() const
+- double mid_price() const
+- size_t bid_depth() const, ask_depth() const
+- std::vector<std::pair<double,uint64_t>> top_n_bids(size_t n) const
+- std::vector<std::pair<double,uint64_t>> top_n_asks(size_t n) const
+
+TRADE STRUCT
+- struct Trade { uint64_t buy_order_id; uint64_t sell_order_id; double price; uint64_t quantity; uint64_t timestamp; }
+
+REQUIREMENTS
+- Price-time priority matching
+- Partial fills supported
+- O(log n) add, O(1) cancel by id (hash map), O(log n) best price lookup
+- No memory leaks (use RAII)
+- Thread-safe NOT required (document this clearly)
+- All functions const-correct
+
+PYBIND11 BINDINGS (cpp/bindings.cpp)
+- Expose OrderBook, Side, Order, Trade to Python as module `order_book_cpp`
+- Auto-convert std::vector<Trade> to Python list
+- Named arguments for clarity
+
+PYTHON CLI (python/cli.py)
+- argparse with commands:
+  * demo -> runs a small scripted scenario, prints the resulting book + trades
+  * stress --n 1000000 -> inserts N random orders and reports throughput
+  * scenario --file scenarios/example.json -> replays a scenario file
+
+BENCHMARK (benchmarks/benchmark.py)
+- Runs 1,000,000 add operations and reports: ops/sec, average latency (ns)
+- Runs 1,000,000 cancel operations and reports throughput
+- Writes results to benchmarks/results.md with a clean markdown table
+
+TESTS (tests/)
+- tests/test_order_book.py: pytest suite
+  * Add bid and ask, verify best_bid/best_ask
+  * Add crossing orders, verify trade execution
+  * Partial fill: verify remaining quantity on the book
+  * Cancel existing order -> true, cancel missing order -> false
+  * Modify order quantity
+  * Spread and mid-price correctness
+  * Top-N levels returned sorted correctly
+  * Stress: insert 10,000 orders, verify invariants (bid < ask)
+
+EXAMPLE SCENARIO (scenarios/example.json)
+- JSON file with a list of operations: [{"op":"add","side":"bid","price":99.5,"qty":100}, ...]
+
+BUILD INSTRUCTIONS
+1. cmake -B build -DCMAKE_BUILD_TYPE=Release
+2. cmake --build build --config Release -j 4
+3. Copy the .so to python/
+4. cd python && python3 -c "import order_book_cpp; ob = order_book_cpp.OrderBook(); print('OK')"
+
+EXECUTION (run these yourself, in order)
+1. cmake -B build -DCMAKE_BUILD_TYPE=Release
+2. cmake --build build --config Release -j 4
+3. Copy .so to python/
+4. cd python && python3 cli.py demo
+5. cd .. && python -m pytest tests/ -v
+6. python benchmarks/benchmark.py
+
+FINAL OUTPUT
+Print:
+1. Full directory tree
+2. C++ compiler version
+3. Benchmark: add ops/sec, cancel ops/sec, average latency in nanoseconds
+4. Demo scenario output: resulting best bid/ask, trades executed
+5. 5-bullet summary of what makes a fast order book and why it matters for HFT
+6. Print "PROJECT_C2_READY_FOR_PUSH" on its own line when complete
+
+Use modern C++17. No raw new/delete. Use smart pointers if needed. No TODOs. Everything must compile and run end to end.

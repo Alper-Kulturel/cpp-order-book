@@ -1,0 +1,33 @@
+[
+  {"op": "add", "side": "bid", "price": 99.50, "qty": 100},
+  {"op": "add", "side": "bid", "price": 99.40, "qty": 200},
+  {"op": "add", "side": "bid", "price": 99.50, "qty": 50},
+  {"op": "add", "side": "ask", "price": 100.50, "qty": 150},
+  {"op": "add", "side": "ask", "price": 100.60, "qty": 250},
+
+  {"op": "depth", "n": 5},
+
+  {"op": "add", "side": "ask", "price": 99.45, "qty": 250},
+
+  {"op": "depth", "n": 5},
+
+  {"op": "cancel", "id": 4},
+  {"op": "cancel", "id": 999},
+
+  {"op": "modify", "id": 2, "qty": 50},
+
+  {"op": "add", "side": "bid", "price": 100.40, "qty": 300},
+
+  {"op": "depth", "n": 5},
+
+  {"op": "add", "side": "bid", "price": 101.00, "qty": 400},
+
+  {"op": "depth", "n": 5},
+
+  {"op": "match"},
+
+  {"op": "modify", "id": 7, "qty": 0},
+  {"op": "cancel", "id": 8},
+
+  {"op": "depth", "n": 5}
+]
