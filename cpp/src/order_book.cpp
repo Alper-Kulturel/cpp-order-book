@@ -81,7 +81,7 @@ OrderId OrderBook::add_limit_order(Side side, Price price, Quantity quantity,
         ask_volume_ += quantity;
     }
 
-    match_aggressive_(side);
+    match_aggressive_(side, ts);
     return id;
 }
 
@@ -173,7 +173,7 @@ void OrderBook::clear() {
 // Matching
 // ---------------------------------------------------------------------------
 
-Trade OrderBook::match_top_(Price trade_price) {
+Trade OrderBook::match_top_(Price trade_price, Timestamp timestamp) {
     auto bid_level = bids_.begin();
     auto ask_level = asks_.begin();
 
@@ -181,14 +181,13 @@ Trade OrderBook::match_top_(Price trade_price) {
     Order& sell = ask_level->second.front();
 
     const Quantity qty = std::min(buy.quantity, sell.quantity);
-    const Timestamp ts = now_ns();
 
     buy.quantity -= qty;
     sell.quantity -= qty;
     bid_volume_ -= qty;
     ask_volume_ -= qty;
 
-    const Trade trade{buy.id, sell.id, trade_price, qty, ts};
+    const Trade trade{buy.id, sell.id, trade_price, qty, timestamp};
 
     // Fully filled orders leave the book. unlink_ may erase a price level, but
     // the two levels live in different maps, so the sibling iterator stays
@@ -207,7 +206,7 @@ Trade OrderBook::match_top_(Price trade_price) {
     return trade;
 }
 
-void OrderBook::match_aggressive_(Side aggressor_side) {
+void OrderBook::match_aggressive_(Side aggressor_side, Timestamp aggressor_ts) {
     // The book is never crossed on entry, so any cross here involves the order
     // we just added and the price it pays is the resting side's price.
     while (!bids_.empty() && !asks_.empty()) {
@@ -217,7 +216,7 @@ void OrderBook::match_aggressive_(Side aggressor_side) {
             return;  // spread intact, nothing to do
         }
         const Price px = (aggressor_side == Side::Bid) ? ask_level->first : bid_level->first;
-        match_top_(px);
+        match_top_(px, aggressor_ts);
     }
 }
 
@@ -229,11 +228,15 @@ void OrderBook::sweep_cross_() {
             return;
         }
         // No aggressor is known here, so the order that was resting longer is
-        // treated as the passive one and sets the price. Both prices are read
-        // before match_top_ invalidates these references.
+        // treated as the passive one and sets the price. Both prices and the
+        // timestamps are read before match_top_ invalidates these references.
+        // The cross exists from the moment the second of the two orders
+        // arrived, so the fill carries the later of the two stamps.
         const Order& buy = bid_level->second.front();
         const Order& sell = ask_level->second.front();
-        match_top_(buy.timestamp <= sell.timestamp ? buy.price : sell.price);
+        const bool buy_is_passive = buy.timestamp <= sell.timestamp;
+        match_top_(buy_is_passive ? buy.price : sell.price,
+                   std::max(buy.timestamp, sell.timestamp));
     }
 }
 

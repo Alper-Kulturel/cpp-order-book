@@ -591,6 +591,27 @@ def test_auto_timestamp_is_monotonic():
     assert stamps == sorted(stamps)
 
 
+def test_trade_timestamps_follow_the_feed_clock():
+    """Fills are stamped from the feed, so replaying a feed is reproducible.
+
+    match_top_ used to stamp every fill with now_ns(), so replaying the same
+    recorded feed twice produced different trade timestamps, and anything
+    driven off the trade stream was not reproducible.
+    """
+
+    def replay():
+        b = lob.OrderBook()
+        b.add_limit_order(side=Ask, price=100.0, quantity=5, timestamp=1_000)
+        b.add_limit_order(side=Ask, price=100.5, quantity=5, timestamp=1_500)
+        # aggressive bid that walks both resting levels
+        b.add_limit_order(side=Bid, price=100.5, quantity=10, timestamp=9_000)
+        return [(t.price, t.quantity, t.timestamp) for t in b.match()]
+
+    first = replay()
+    assert first == [(100.0, 5, 9_000), (100.5, 5, 9_000)]
+    assert replay() == first  # identical on a second replay
+
+
 # ---------------------------------------------------------------------------
 # stress
 # ---------------------------------------------------------------------------

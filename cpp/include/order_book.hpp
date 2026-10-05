@@ -240,12 +240,15 @@ private:
 
     using OrderIndex = std::pmr::unordered_map<OrderId, OrderLocation>;
 
-    // Fills the top of both books; returns the trade it created.
-    Trade match_top_(Price trade_price);
+    // Fills the top of both books; returns the trade it created. `timestamp`
+    // is the feed time of the event that caused the fill, not the wall clock,
+    // so replaying a feed reproduces the same trades.
+    Trade match_top_(Price trade_price, Timestamp timestamp);
 
     // Consume a crossing book after an aggressive add on `aggressor_side`,
-    // trading at the resting side's price.
-    void match_aggressive_(Side aggressor_side);
+    // trading at the resting side's price. `aggressor_ts` stamps every fill
+    // the aggressor produces.
+    void match_aggressive_(Side aggressor_side, Timestamp aggressor_ts);
 
     // Safety net for a crossed book (should be unreachable via the public API).
     void sweep_cross_();
