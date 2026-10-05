@@ -70,9 +70,36 @@ target_link_libraries(lob_bench PRIVATE lob)
 # ---------------------------------------------------------------------------
 
 # Locate pybind11. Prefer an explicit -Dpybind11_DIR=..., otherwise ask the
-# interpreter we are building against -- that way `cmake -B build` just works
-# inside an activated virtualenv.
+# interpreter we are building against.
 if(NOT pybind11_DIR)
+    # CMake's own Python3 search does not reliably land on the interpreter that
+    # is first on PATH: it can settle on a system or framework install instead,
+    # and the pybind11 probe below then inspects the wrong site-packages. When a
+    # virtualenv or conda environment is active, that environment is the clear
+    # intent, so name its interpreter up front. A caller-supplied
+    # -DPython3_EXECUTABLE=... still wins, as it is already set by this point.
+    if(NOT Python3_EXECUTABLE)
+        foreach(_lob_env_root "$ENV{VIRTUAL_ENV}" "$ENV{CONDA_PREFIX}")
+            if(_lob_env_root)
+                # POSIX venvs and conda put the interpreter in bin/; Windows
+                # venvs use Scripts/.
+                foreach(_lob_py "bin/python3" "bin/python" "Scripts/python.exe")
+                    if(EXISTS "${_lob_env_root}/${_lob_py}")
+                        set(Python3_EXECUTABLE "${_lob_env_root}/${_lob_py}")
+                        break()
+                    endif()
+                endforeach()
+                if(Python3_EXECUTABLE)
+                    message(STATUS
+                        "Using active environment interpreter ${Python3_EXECUTABLE}")
+                    break()
+                endif()
+            endif()
+        endforeach()
+        unset(_lob_env_root)
+        unset(_lob_py)
+    endif()
+
     find_package(Python3 COMPONENTS Interpreter Development.Module QUIET)
     if(Python3_EXECUTABLE)
         execute_process(
@@ -86,8 +113,10 @@ if(NOT pybind11_DIR)
             message(STATUS "pybind11 found via ${Python3_EXECUTABLE}")
         else()
             message(WARNING
-                "Could not ask ${Python3_EXECUTABLE} for pybind11. "
-                "Install it with `pip install pybind11` or pass -Dpybind11_DIR=...")
+                "Could not ask ${Python3_EXECUTABLE} for pybind11. Install it "
+                "with `pip install pybind11` into that interpreter, activate "
+                "the environment you want to build against, or pass "
+                "-Dpybind11_DIR=...")
         endif()
     endif()
 endif()
